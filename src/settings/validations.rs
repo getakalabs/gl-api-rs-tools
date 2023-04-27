@@ -130,7 +130,7 @@ impl Settings {
                 _=> None
             });
 
-        let smtp_host = crate::validate_string(&self.smtp_host, Some(5))
+        let smtp_host = crate::validate_string(&self.smtp_host, Some(2))
             .and_then(|error| match error {
                 "empty" => Some("Please enter the mailer SMTP host".to_string()),
                 "invalid" => Some("Please enter a valid SMTP host".to_string()),
