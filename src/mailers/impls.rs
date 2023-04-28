@@ -91,4 +91,63 @@ impl Mailer {
             Err(error) => Err(Payload::error(&error)),
         }
     }
+
+    pub fn send_mail_from<T, F, S, B>(&self, to: T, from: F, subject: S, body: B) -> Result<String>
+        where T: ToString,
+              F: ToString,
+              S: ToString,
+              B: ToString,
+    {
+        // Retrieve values
+        let data = match self.to_json() {
+            Some(data) => data,
+            None => return Err(Payload::error("Your platform's email configuration is invalid. Please contact your administrator"))
+        };
+
+        // Set bindings
+        let sender = from.to_string();
+        let to = to.to_string();
+        let subject = subject.to_string();
+        let body = body.to_string();
+
+        let username = data.username.map_or(String::default(), |d| d.get_string().unwrap_or(String::default()));
+        let password = data.password.map_or(String::default(), |d| d.get_string().unwrap_or(String::default()));
+        let smtp_host = data.smtp_host.map_or(String::default(), |d| d.get_string().unwrap_or(String::default()));
+
+        // Create multipart body
+        let multipart = MultiPart::alternative()
+            .singlepart(
+                SinglePart::builder()
+                    .header(ContentType::TEXT_HTML)
+                    .body(body)
+            );
+
+        // Create email builder
+        let builder = match Message::builder()
+            .from(sender.parse().unwrap())
+            .to(to.parse().unwrap())
+            .subject(subject)
+            .multipart(multipart) {
+            Ok(builder) => builder,
+            Err(error) => return Err(Payload::error(&error))
+        };
+
+        // Set credentials
+        let credentials = Credentials::new(username, password);
+
+        // Set smtp transport relay
+        let relay = match SmtpTransport::relay(smtp_host.as_str()) {
+            Ok(relay) => relay,
+            Err(error) => return Err(Payload::error(&error))
+        };
+
+        // Open a remote connection
+        let mailer = relay.credentials(credentials).build();
+
+        // Send the email
+        match mailer.send(&builder) {
+            Ok(_) => Ok(format!("Email sent successfully to {to}")),
+            Err(error) => Err(Payload::error(&error)),
+        }
+    }
 }

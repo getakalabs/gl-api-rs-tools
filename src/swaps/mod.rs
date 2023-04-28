@@ -42,6 +42,16 @@ impl <T:Clone + GetObjectId + ToJson + ToBson + IsEmpty + PartialEq + Default> G
     }
 }
 
+impl <T:Clone + GetObjectId + ToJson + ToBson + IsEmpty + PartialEq + Default> GetString for Swap<T> {
+    fn get_string(&self) -> Option<String> {
+        match self {
+            Self::ObjectId(value) => Some(value.to_string()),
+            Self::String(value) => Some(value.clone()),
+            _ => None
+        }
+    }
+}
+
 impl <T:Clone + GetObjectId + ToJson + ToBson + IsEmpty + PartialEq + Default> IsEmpty for Swap<T> {
     fn is_empty(&self) -> bool {
         match self.clone() == Self::default() {

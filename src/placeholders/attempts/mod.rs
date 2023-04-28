@@ -94,3 +94,13 @@ impl ToOption for Attempt {
         }
     }
 }
+
+impl Attempt {
+    pub fn new() -> Self {
+        Self {
+            attempt_count: Some(0),
+            id: Some(crate::generators::numbers::get_rand(6)),
+            ..Default::default()
+        }
+    }
+}
