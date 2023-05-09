@@ -259,7 +259,7 @@ impl Pipeline {
                 for i in values {
                     let item = i.to_string().trim().to_string();
 
-                    items.push(Regex{ pattern: item, options: "i".to_string() })
+                    items.push(Regex{ pattern: format!("^{item}$"), options: "i".to_string() })
                 }
 
                 if !items.is_empty() {
