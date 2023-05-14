@@ -10,6 +10,7 @@ use crate::Swap;
 #[serde(untagged)]
 pub enum MongoArray<T:Clone + GetObjectId + ToJson + ToBson + IsEmpty + PartialEq + Default> {
     Array(Vec<Option<Swap<T>>>),
+    ArrayString(Vec<String>),
     String(String),
     None
 }
@@ -128,16 +129,46 @@ impl<T:Clone + GetObjectId + ToJson + ToBson + IsEmpty + PartialEq + Default> Ge
 
                 array
             },
-            Self::String(data) => {
+            Self::ArrayString(data) => {
                 let mut array = Vec::new();
 
-                for item in data.split(',') {
-                    if let Ok(id) = ObjectId::from_str(item) {
-                        array.push(id)
+                for item in data {
+                    match ObjectId::from_str(item) {
+                        Ok(data) => array.push(data.clone()),
+                        Err(_) => {}
                     }
                 }
 
                 array
+            },
+            Self::String(data) => {
+                let item = urlencoding::decode(data).unwrap_or_default().to_string();
+                match serde_json::from_str::<Vec<String>>(&item) {
+                    Ok(data) => {
+                        let mut array = Vec::new();
+
+                        for item in data {
+                            match ObjectId::from_str(&item) {
+                                Ok(data) => array.push(data.clone()),
+                                Err(_) => {}
+                            }
+                        }
+
+                        array
+                    },
+                    Err(_) => {
+                        let mut array = Vec::new();
+
+                        for item in data.split(',') {
+                            match ObjectId::from_str(item) {
+                                Ok(data) => array.push(data.clone()),
+                                Err(_) => {}
+                            }
+                        }
+
+                        array
+                    }
+                }
             },
             Self::None => Vec::new()
         }
@@ -161,6 +192,10 @@ impl<T:Clone + GetObjectId + ToJson + ToBson + IsEmpty + PartialEq + Default> Ge
                     false => Some(data)
                 }
             },
+            Self::ArrayString(data) => match data.is_empty() {
+                true => None,
+                false => Some(data)
+            },
             Self::String(data) => {
                 match data.is_empty() {
                     true => None,
@@ -176,6 +211,7 @@ impl<T:Clone + GetObjectId + ToJson + ToBson + IsEmpty + PartialEq + Default> Is
     fn is_empty(&self) -> bool {
         match self {
             Self::Array(data) => data.is_empty(),
+            Self::ArrayString(data) => data.is_empty(),
             Self::String(data) => data.is_empty(),
             Self::None => true
         }
@@ -207,6 +243,18 @@ impl<T:Clone + GetObjectId + ToJson + ToBson + IsEmpty + PartialEq + Default> To
                     false => Some(Self::Array(array))
                 }
             },
+            Self::ArrayString(data) => {
+                let mut array = Vec::new();
+
+                for item in data {
+                    array.push(item.clone());
+                }
+
+                match array.is_empty() {
+                    true => None,
+                    false => Some(Self::ArrayString(array))
+                }
+            }
             Self::String(data) => {
                 match data.is_empty() {
                     true => None,
@@ -238,6 +286,18 @@ impl<T:Clone + GetObjectId + ToJson + ToBson + IsEmpty + PartialEq + Default> To
                 match array.is_empty() {
                     true => None,
                     false => Some(Self::Array(array))
+                }
+            },
+            Self::ArrayString(data) => {
+                let mut array = Vec::new();
+
+                for item in data {
+                    array.push(item.clone())
+                }
+
+                match array.is_empty() {
+                    true => None,
+                    false => Some(Self::ArrayString(array))
                 }
             },
             Self::String(data) => {

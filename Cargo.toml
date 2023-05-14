@@ -1,6 +1,6 @@
 [package]
 name = "tools"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -39,5 +39,6 @@ serde_json = { version = "1.0.81", features = ["preserve_order"] }
 slugify = "0.1.0"
 titlecase = "2.0.0"
 validator = "0.16.0"
+urlencoding = "2.1.2"
 user-agent-parser = "0.3.3"
 xsalsa20poly1305 = "0.9.0-pre"
