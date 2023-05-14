@@ -114,6 +114,10 @@ impl Pipeline {
         self
     }
 
+    pub fn get_pipeline(&self) -> Vec<Document> {
+        self.queries.clone()
+    }
+
     pub fn global_search(&mut self, search: &[Document]) -> &mut Self {
         if !search.is_empty() {
             self.queries.push(doc! {
@@ -319,6 +323,14 @@ impl Pipeline {
                     "$or": array
                 }
             });
+        }
+
+        self
+    }
+
+    pub fn optional(&mut self, value: Option<Document>) -> &mut Self {
+        if let Some(value) = value {
+            self.queries.push(value);
         }
 
         self
