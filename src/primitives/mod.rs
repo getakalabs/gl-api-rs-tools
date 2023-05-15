@@ -66,6 +66,24 @@ impl GetArrayString for Primitive {
                     None
                 }
             },
+            Self::String(data) => {
+                let item = urlencoding::decode(&data).unwrap_or_default().to_string();
+                match serde_json::from_str::<Vec<String>>(&item) {
+                    Ok(data) => Some(data),
+                    Err(_) => {
+                        let mut array = Vec::new();
+
+                        for item in data.split(',') {
+                            array.push(item.clone().to_string())
+                        }
+
+                        match array.is_empty() {
+                            true => None,
+                            false => Some(array)
+                        }
+                    }
+                }
+            },
             _ => None
         }
     }
