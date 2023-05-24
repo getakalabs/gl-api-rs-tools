@@ -1,4 +1,4 @@
-pub enum CipherAction {
+pub(super) enum Action {
     Encrypt,
     Decrypt
 }

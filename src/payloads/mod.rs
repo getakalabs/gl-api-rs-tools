@@ -1,8 +1,9 @@
-use actix_web::{error, HttpRequest, HttpResponse, Responder};
-use actix_web::{body::BoxBody, http::StatusCode};
+use actix_web::{ error, HttpRequest, HttpResponse, Responder };
+use actix_web::{ body::BoxBody, http::StatusCode };
 use display_json::DisplayAsJsonPretty;
-use serde::{Serialize, Deserialize};
+use serde::{ Serialize, Deserialize };
 
+/// Payload struct container
 #[derive(Debug, Default, Clone, PartialEq, DisplayAsJsonPretty, Serialize, Deserialize)]
 pub struct Payload {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -19,6 +20,7 @@ pub struct Payload {
     pub errors: Option<serde_json::Value>
 }
 
+/// Implement Responder trait for Payload
 impl Responder for Payload {
     type Body = BoxBody;
 
@@ -43,7 +45,9 @@ impl Responder for Payload {
     }
 }
 
+/// Implement ResponseError trait for Payload
 impl error::ResponseError for Payload {
+    /// Return status code
     fn status_code(&self) -> StatusCode {
         match self.code {
             Some(200) => StatusCode::OK,
@@ -57,6 +61,7 @@ impl error::ResponseError for Payload {
 
     }
 
+    /// Returns response body
     fn error_response(&self) -> HttpResponse<BoxBody> {
         let payload = serde_json::to_string(&self).unwrap();
 
@@ -80,7 +85,9 @@ impl error::ResponseError for Payload {
     }
 }
 
+/// Payload implementations
 impl Payload {
+    /// Create data payload with code and data responder
     pub fn data<T>(code:usize, data:T) -> Self
         where T: Serialize
     {
@@ -92,6 +99,7 @@ impl Payload {
         }
     }
 
+    /// Create actix web error responder with code and message
     pub fn error<T: ToString>(error: T) -> error::Error {
         let error = error.to_string();
 
@@ -107,6 +115,7 @@ impl Payload {
         }.into()
     }
 
+    /// Create actix web errors responder with code and array of messages (key/value pair)
     pub fn errors<T>(error:T) -> error::Error
         where T: Serialize
     {
@@ -118,47 +127,12 @@ impl Payload {
         }.into()
     }
 
+    /// Create actix web success responder with code and message
     pub fn success<T: ToString>(message: T) -> Self {
         Self {
             code: Some(200),
             message: Some(message.to_string()),
             ..Default::default()
         }
-    }
-
-    pub fn authentication_expired() -> HttpResponse {
-        let payload = Self {
-            code: Some(401),
-            error: Some(String::from("Authentication token expired")),
-            ..Default::default()
-        };
-
-        HttpResponse::BadRequest()
-            .content_type("application/json")
-            .body(serde_json::to_string(&payload).unwrap())
-    }
-
-    pub fn database() -> HttpResponse {
-        let payload = Self {
-            code: Some(400),
-            error: Some(String::from("Invalid database configuration")),
-            ..Default::default()
-        };
-
-        HttpResponse::BadRequest()
-            .content_type("application/json")
-            .body(serde_json::to_string(&payload).unwrap())
-    }
-
-    pub fn middleware() -> HttpResponse {
-        let payload = Self {
-            code: Some(400),
-            error: Some(String::from("Missing middleware. Please configure your server properly")),
-            ..Default::default()
-        };
-
-        HttpResponse::BadRequest()
-            .content_type("application/json")
-            .body(serde_json::to_string(&payload).unwrap())
     }
 }

@@ -1,21 +1,23 @@
-pub mod action;
-pub mod cipher;
-pub mod manager;
-pub mod payload;
+pub(super) mod action;
+pub(super) mod cipher;
 
-pub use crate::ciphers::cipher::Cipher;
-pub use crate::ciphers::action::CipherAction;
+pub use cipher::Cipher;
 
 use anyhow::Result;
 use rand::Rng;
-use xsalsa20poly1305::aead::{Aead, KeyInit};
-use xsalsa20poly1305::aead::generic_array::{GenericArray, typenum};
+use xsalsa20poly1305::aead::{ Aead, KeyInit };
+use xsalsa20poly1305::aead::generic_array::{ GenericArray, typenum };
 use xsalsa20poly1305::XSalsa20Poly1305;
 
+/// Set nonce length
+const NONCE_LENGTH: usize = 24;
+
+/// Generate a random key encoded with base64 url
 pub fn generate() -> String {
     base64_url::encode(&rand::thread_rng().gen::<[u8; 32]>())
 }
 
+/// Decrypt a content
 pub fn decrypt<C, K>(content: C, key: K) -> Result<String>
     where C: ToString,
           K: ToString
@@ -27,12 +29,12 @@ pub fn decrypt<C, K>(content: C, key: K) -> Result<String>
 
     // Set content
     let content = base64_url::decode(&content.to_string())?;
-    if content.len() <= 24 {
+    if content.len() <= NONCE_LENGTH {
         return Err(anyhow::anyhow!("Invalid content length"));
     }
 
     // Split content
-    let (nonce, content) = content.split_at(24);
+    let (nonce, content) = content.split_at(NONCE_LENGTH);
 
     // Set nonce & content
     let nonce:&GenericArray<u8, typenum::U24> = GenericArray::from_slice(nonce);
@@ -45,6 +47,7 @@ pub fn decrypt<C, K>(content: C, key: K) -> Result<String>
     Ok(String::from_utf8_lossy(&content).to_string())
 }
 
+/// Encrypt a content
 pub fn encrypt<C, K>(content: C, key: K) -> Result<String>
     where C: ToString,
           K: ToString

@@ -1,6 +1,4 @@
-use actix_web::error::{InternalError, JsonPayloadError, PayloadError};
-use actix_web::HttpResponse;
-use actix_web::web::JsonConfig;
+use actix_web::{ error::{ InternalError, JsonPayloadError, PayloadError }, HttpResponse, web::JsonConfig };
 
 use crate::Payload;
 

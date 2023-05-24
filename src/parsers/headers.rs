@@ -5,7 +5,7 @@ use actix_web::http::header::HeaderValue;
 
 // Parse range header to get start and end
 // Author: Deneir
-pub fn get(range_header: &HeaderValue) -> Result<(usize, usize)> {
+pub fn get_range(range_header: &HeaderValue) -> Result<(usize, usize)> {
     let s = range_header.to_str().unwrap();
     let prefix = "bytes=";
 

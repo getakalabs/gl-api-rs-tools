@@ -1,259 +1,189 @@
 use anyhow::Result;
-use mongodb::bson::Bson;
-use serde::{Serialize, Deserialize};
+use mongodb::bson::{ Bson, Document };
+use serde::{ Serialize, Deserialize };
+use xsalsa20poly1305::aead::{ Aead, KeyInit };
+use xsalsa20poly1305::aead::generic_array::{ GenericArray, typenum::{ self, Unsigned } };
+use xsalsa20poly1305::XSalsa20Poly1305;
 
-use crate::traits::GetI32;
-use crate::traits::GetString;
+
 use crate::traits::IsEmpty;
-use crate::traits::SetToCipher;
-use crate::traits::SetToI32;
-use crate::traits::SetToString;
-use crate::traits::ToBson;
-use crate::traits::ToJson;
 
-use super::manager::CipherManager;
-use super::payload::Payload;
+use super::action::Action;
 
+/// Create const for master key and web key
 const MASTER_KEY: &str = "MASTER_KEY";
 const WEB_KEY: &str = "WEB_KEY";
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum Cipher {
-    CipherManager(CipherManager),
-    Payload(Payload),
-    String(String),
-    I32(i32),
-    None
-}
-
-impl Default for Cipher {
-    fn default() -> Self {
-        Self::None
-    }
-}
-
-impl GetI32 for Cipher {
-    fn get_i32(&self) -> Option<i32> {
-        match self.set_to_i32() {
-            Self::I32(value) => Some(value),
-            _ => None
-        }
-    }
-}
-
-impl GetString for Cipher {
-    fn get_string(&self) -> Option<String> {
-        match self.set_to_string() {
-            Self::String(value) => match value.is_empty() {
-                true => None,
-                false => Some(value)
-            },
-            _ => None
-        }
-    }
+/// Cipher struct
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Cipher {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) hash: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) is_encrypted: Option<bool>,
 }
 
 impl IsEmpty for Cipher {
     fn is_empty(&self) -> bool {
-        match self {
-            Self::CipherManager(value) => value.is_empty(),
-            Self::Payload(value) => value.is_empty(),
-            Self::String(value) => value.is_empty(),
-            Self::None => true,
-            _ => false
-        }
+        Self::default() == *self
     }
 }
 
-impl SetToCipher for Cipher {
-    fn set_to_cipher(&self) -> Self {
-        match self {
-            Self::CipherManager(value) => Self::CipherManager(value.clone()),
-            Self::String(value) => Self::CipherManager(CipherManager::from(value.to_string())),
-            Self::I32(value) => Self::CipherManager(CipherManager::from(value.to_string())),
-            _ => Self::None
-        }
-    }
-}
-
-impl SetToI32 for Cipher {
-    fn set_to_i32(&self) -> Self {
-        match self {
-            Self::CipherManager(value) => {
-                match value.to_string().parse::<i32>() {
-                    Ok(value) => Self::I32(value),
-                    Err(_) => Self::None
-                }
-            }
-            Self::String(value) => {
-                match value.parse::<i32>() {
-                    Ok(value) => Self::I32(value),
-                    Err(_) => Self::None
-                }
-            },
-            _ => Self::None
-        }
-    }
-}
-
-impl SetToString for Cipher {
-    fn set_to_string(&self) -> Self {
-        match self {
-            Self::CipherManager(value) => Self::String(value.to_string()),
-            Self::I32(value) => Self::String(value.to_string()),
-            Self::String(value) => Self::String(value.to_string()),
-            _ => Self::None
-        }
-    }
-}
-
-impl ToBson for Cipher {
-    fn to_bson(&self) -> Option<Self> {
-        match self.set_to_cipher() {
-            Self::CipherManager(value) => Some(Self::CipherManager(value)),
-            _ => None
-        }
-    }
-}
-
-impl ToJson for Cipher {
-    fn to_json(&self) -> Option<Self> {
-        match self.set_to_string() {
-            Self::String(value) => Some(Self::String(value)),
-            _ => None
-        }
-    }
-}
-
+/// From implementation for Cipher and convert it to Bson
 impl From<Cipher> for Bson {
     fn from(value: Cipher) -> Self {
-        match value {
-            Cipher::CipherManager(value) => Bson::from(value),
-            Cipher::String(value) => Bson::from(value),
-            Cipher::I32(value) => Bson::from(value),
-            _ => Bson::Null
-        }
+        Bson::Document(value.into())
     }
 }
 
-impl From<Payload> for Cipher {
-    fn from(value: Payload) -> Self {
-        match value.is_empty() {
-            true => Self::None,
-            false => Self::Payload(value)
-        }
+/// From implementation for Cipher and convert it to Mongo Document
+impl From<Cipher> for Document {
+    fn from(value: Cipher) -> Document {
+        let mut doc = Document::new();
+
+        doc.insert("content", Bson::from(value.content));
+        doc.insert("hash", Bson::from(value.hash));
+        doc.insert("is_encrypted", Bson::from(value.is_encrypted));
+
+        doc
     }
 }
 
-impl From<&Payload> for Cipher {
-    fn from(value: &Payload) -> Self {
-        Self::Payload(value.clone())
-    }
-}
-
-impl From<String> for Cipher {
-    fn from(value: String) -> Self {
-        match value.is_empty() {
-            true => Self::None,
-            false => Self::new(value)
-        }
-    }
-}
-
-impl From<&String> for Cipher {
-    fn from(value: &String) -> Self {
-        match value.is_empty() {
-            true => Self::None,
-            false => Self::new(value)
-        }
-    }
-}
-
-impl From<&str> for Cipher {
-    fn from(value: &str) -> Self {
-        match value.is_empty() {
-            true => Self::None,
-            false => Self::new(value)
-        }
-    }
-}
-
-impl From<usize> for Cipher {
-    fn from(value: usize) -> Self {
-        match value == 0 {
-            true => Self::None,
-            false => Self::new(value)
-        }
-    }
-}
-
-impl From<i32> for Cipher {
-    fn from(value: i32) -> Self {
-        match value == 0 {
-            true => Self::None,
-            false => Self::new(value)
-        }
-    }
-}
-
+/// ToString implementation of cipher
 impl ToString for Cipher {
     fn to_string(&self) -> String {
-        match self.set_to_string() {
-            Self::String(value) => value,
-            _ => String::new()
-        }
+        self.content.clone().unwrap_or(String::default())
     }
 }
 
+/// Cipher implementation of internal methods
 impl Cipher {
-    pub fn new<T>(value: T) -> Self
-        where T: ToString
+    /// Create new cipher object from string value
+    pub fn new<C>(content: C) -> Self
+        where C: ToString
     {
-        Self::CipherManager(CipherManager::new(value))
+        Self {
+            content: Some(content.to_string()),
+            hash: None,
+            is_encrypted: None,
+        }
     }
 
-    pub fn payload() -> Payload {
-        Payload::default()
+    /// Checks if cipher is ready for encryption/decryption
+    pub(super) fn is_ready(&self, action: Action) -> bool {
+        let is_encrypted = self.is_encrypted.unwrap_or(false);
+        let is_empty_content = self.content.clone().unwrap_or(String::default()).is_empty();
+        let is_empty_hash = self.hash.clone().unwrap_or(String::default()).is_empty();
+
+        match action {
+            Action::Encrypt => !is_encrypted && !is_empty_content,
+            Action::Decrypt => is_encrypted && !is_empty_content && !is_empty_hash,
+        }
     }
 
+    /// Encrypt providing env key
+    pub(super) fn encrypt<K>(&self, key: K) -> Result<Self>
+        where K: ToString
+    {
+        // Check if encryption is ready
+        if !self.is_ready(Action::Encrypt) {
+            return Err(anyhow::anyhow!("Unable to encrypt content"));
+        }
+
+        // Get manager
+        let mut manager = self.clone();
+
+        // Encrypt content
+        let hash = base64_url::decode(&super::generate())?;
+        let nonce = XSalsa20Poly1305::generate_nonce(&mut rand::rngs::OsRng);
+        let cipher = XSalsa20Poly1305::new(GenericArray::from_slice(&hash));
+        let content = match cipher.encrypt(&nonce, manager.content.clone().unwrap_or(String::default()).as_bytes()) {
+            Ok(value) => value,
+            Err(_) => return Err(anyhow::anyhow!("Unable to encrypt content"))
+        };
+
+        // Populate manager content
+        manager.content = Some(base64_url::encode(&[&nonce[..], &content[..]].concat()));
+
+        // Encrypt hash
+        let binding = base64_url::decode(&std::env::var(key.to_string())?)?;
+        let key =  GenericArray::from_slice(&binding);
+        let cipher = XSalsa20Poly1305::new(key);
+
+        // Encrypt hash
+        let nonce = XSalsa20Poly1305::generate_nonce(&mut rand::rngs::OsRng);
+        let hash = match cipher.encrypt(&nonce, hash.as_slice()) {
+            Ok(value) => value,
+            Err(_) => return Err(anyhow::anyhow!("Unable to encrypt hash"))
+        };
+
+        // Populate manager
+        manager.hash = Some(base64_url::encode( &[&nonce[..], &hash[..]].concat()));
+        manager.is_encrypted = Some(true);
+
+        // Return manager
+        Ok(manager)
+    }
+
+    /// Decrypt providing env key
+    pub(super) fn decrypt<K>(&self, key: K) -> Result<Self>
+        where K: ToString
+    {
+        // Check if decryption is ready
+        if !self.is_ready(Action::Decrypt) {
+            return Err(anyhow::anyhow!("Unable to decrypt content"));
+        }
+
+        // Get manager
+        let mut manager = self.clone();
+
+        // Decrypt hash
+        let binding = base64_url::decode(&std::env::var(key.to_string())?)?;
+        let key =  GenericArray::from_slice(&binding);
+        let cipher = XSalsa20Poly1305::new(key);
+        let hash = base64_url::decode(&manager.hash.clone().unwrap_or(String::default()))?;
+        let nonce = GenericArray::from_slice(&hash[..typenum::U24::to_usize()]);
+        let hash = match cipher.decrypt(nonce, &hash[typenum::U24::to_usize()..]) {
+            Ok(value) => value,
+            Err(_) => return Err(anyhow::anyhow!("Unable to decrypt hash"))
+        };
+
+        // Decrypt content
+        let cipher = XSalsa20Poly1305::new(GenericArray::from_slice(&hash));
+        let content = base64_url::decode(&manager.content.clone().unwrap_or(String::default()))?;
+        let nonce = GenericArray::from_slice(&content[..typenum::U24::to_usize()]);
+        let content = match cipher.decrypt(nonce, &content[typenum::U24::to_usize()..]) {
+            Ok(value) => value,
+            Err(_) => return Err(anyhow::anyhow!("Unable to decrypt content"))
+        };
+
+        // Populate manager
+        manager.content = Some(String::from_utf8_lossy(content.as_slice()).to_string());
+        manager.is_encrypted = Some(false);
+
+        // Return manager
+        Ok(manager)
+    }
+
+    /// Encrypt using master key
     pub fn encrypt_master(&self) -> Result<Self> {
-        match self.set_to_cipher() {
-            Self::CipherManager(value) => {
-                let value = value.encrypt(MASTER_KEY)?;
-                Ok(Self::CipherManager(value))
-            },
-            _ => Err(anyhow::anyhow!("Unable to encrypt with master key"))
-        }
+        self.encrypt(MASTER_KEY)
     }
 
+    /// Encrypt using web key
     pub fn encrypt_web(&self) -> Result<Self> {
-        match self.set_to_cipher() {
-            Self::CipherManager(value) => {
-                let value = value.encrypt(WEB_KEY)?;
-                Ok(Self::CipherManager(value))
-            },
-            _ => Err(anyhow::anyhow!("Unable to encrypt with web key"))
-        }
+        self.encrypt(WEB_KEY)
     }
 
+    /// Decrypt using master key
     pub fn decrypt_master(&self) -> Result<Self> {
-        match self.set_to_cipher() {
-            Self::CipherManager(value) => {
-                let value = value.decrypt(MASTER_KEY)?;
-                Ok(Self::CipherManager(value))
-            },
-            _ => Err(anyhow::anyhow!("Unable to decrypt with master key"))
-        }
+        self.decrypt(MASTER_KEY)
     }
 
+    /// Decrypt using web key
     pub fn decrypt_web(&self) -> Result<Self> {
-        match self.set_to_cipher() {
-            Self::CipherManager(value) => {
-                let value = value.decrypt(WEB_KEY)?;
-                Ok(Self::CipherManager(value))
-            },
-            _ => Err(anyhow::anyhow!("Unable to decrypt with web key"))
-        }
+        self.decrypt(WEB_KEY)
     }
 }

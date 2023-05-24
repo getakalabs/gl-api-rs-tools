@@ -1,10 +1,10 @@
 use actix_cors::Cors;
 
 /// Returns cors setup
-pub fn stage(methods: &Vec<String>) -> Cors {
+pub fn stage<T: ToString>(methods: &[T]) -> Cors {
     // Set bindings
-    let bindings = methods.to_owned();
-    let methods:Vec<&str> = bindings.iter().map(|s| s.as_str()).collect();
+    let binding = methods.iter().map(|s| s.to_string()).collect::<Vec<String>>();
+    let methods: Vec<&str> = binding.iter().map(|s| s.as_str()).collect();
 
     // Return cors
     Cors::default()

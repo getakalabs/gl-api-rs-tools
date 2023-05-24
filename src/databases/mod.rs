@@ -1,75 +1,62 @@
-pub mod array;
-pub mod datetime;
-pub mod objectid;
+pub mod mongo;
 
-pub use actix_web::Result;
-pub use array::MongoArray;
-pub use datetime::MongoDateTime;
-pub use objectid::MongoObjectId;
-
-use mongodb::{Client, options::ClientOptions, Database};
+use actix_web::Result;
+use mongodb::{ Client, options::ClientOptions, Database };
 use std::env;
 
-use crate::Payload;
 use crate::traits::IsEmpty;
+use crate::Payload;
 
+/// Set database manager
 #[derive(Debug, Clone)]
-pub enum MongoDBManager {
-    MongoDB(MongoDB),
+pub enum DatabaseManager {
+    MongoDB(mongo::MongoDB),
     None
 }
 
-impl IsEmpty for MongoDBManager {
+/// Implement IsEmpty trait for DatabaseManager
+impl IsEmpty for DatabaseManager {
     fn is_empty(&self) -> bool {
-        match self {
-            MongoDBManager::MongoDB(_) => false,
-            MongoDBManager::None => true
-        }
+        matches!(self, Self::None)
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct MongoDB {
-    pub client: Client,
-    pub database: Database
-}
-
-impl From<(Client, String)> for MongoDB {
-    fn from((client, database): (Client, String)) -> Self {
-        let database = client.database(&database);
-
-        Self { client, database }
-    }
-}
-
-impl MongoDBManager {
+/// DatabaseManager implementations
+impl DatabaseManager {
+    /// Create new database manager
     pub async fn new<T, U>(url: T, name: U) -> Result<Self>
         where T: ToString,
               U: ToString
     {
+        // Retrieve database url and name from environment variables
         let url = match env::var(url.to_string()) {
             Ok(value) => value,
-            Err(_) => return Err(Payload::error("Unable to retrieve database url"))
+            Err(_) => return Err(Payload::error("Unable to retrieve database url".to_string()))
         };
 
+        // Retrieve database name from environment variables
         let name = match env::var(name.to_string()) {
             Ok(value) => value,
             Err(_) => return Err(Payload::error("Unable to retrieve database name"))
         };
 
+        // Parse database url
         let options = match ClientOptions::parse(&url).await {
             Ok(value) => value,
             Err(error) => return Err(Payload::error(error))
         };
 
+        // Create database client
         let client = match Client::with_options(options) {
             Ok(value) => value,
             Err(error) => return Err(Payload::error(error))
         };
 
-        Ok(Self::MongoDB(MongoDB::from((client, name))))
+        // Return database manager
+        Ok(Self::MongoDB(mongo::MongoDB::from((client, name))))
     }
 
+    /// Retrieve database instance
     pub fn get(&self) -> Result<Database> {
         match self {
             Self::MongoDB(value) => Ok(value.database.clone()),
@@ -77,6 +64,7 @@ impl MongoDBManager {
         }
     }
 
+    /// Retrieve database client
     pub fn get_client(&self) -> Result<Client> {
         match self {
             Self::MongoDB(value) => Ok(value.client.clone()),
