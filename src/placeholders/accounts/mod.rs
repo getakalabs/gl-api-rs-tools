@@ -22,13 +22,13 @@ impl Serialize for Account {
             S: Serializer,
     {
         match self.clone() {
-            Self::Manual => serializer.serialize_str("Manual"),
-            Self::Facebook => serializer.serialize_str("Facebook"),
-            Self::Google => serializer.serialize_str("Google"),
-            Self::Twitter => serializer.serialize_str("Twitter"),
-            Self::Linkedin => serializer.serialize_str("Linkedin"),
-            Self::Apple => serializer.serialize_str("Apple"),
-            Self::Instagram => serializer.serialize_str("Instagram"),
+            Self::Manual => serializer.serialize_str("MANUAL"),
+            Self::Facebook => serializer.serialize_str("FACEBOOK"),
+            Self::Google => serializer.serialize_str("GOOGLE"),
+            Self::Twitter => serializer.serialize_str("TWITTER"),
+            Self::Linkedin => serializer.serialize_str("LINKEDIN"),
+            Self::Apple => serializer.serialize_str("APPLE"),
+            Self::Instagram => serializer.serialize_str("INSTAGRAM"),
             Self::String(value) => serializer.serialize_str(&value)
         }
     }
@@ -74,13 +74,13 @@ impl ToOption for Account {
 impl ToString for Account {
     fn to_string(&self) -> String {
         match self.clone() {
-            Self::Manual => String::from("Manual"),
-            Self::Facebook => String::from("Facebook"),
-            Self::Google => String::from("Google"),
-            Self::Twitter => String::from("Twitter"),
-            Self::Linkedin => String::from("Linkedin"),
-            Self::Apple => String::from("Apple"),
-            Self::Instagram => String::from("Instagram"),
+            Self::Manual => String::from("MANUAL"),
+            Self::Facebook => String::from("FACEBOOK"),
+            Self::Google => String::from("GOOGLE"),
+            Self::Twitter => String::from("TWITTER"),
+            Self::Linkedin => String::from("LINKEDIN"),
+            Self::Apple => String::from("APPLE"),
+            Self::Instagram => String::from("INSTAGRAM"),
             Self::String(value) => value
         }
     }

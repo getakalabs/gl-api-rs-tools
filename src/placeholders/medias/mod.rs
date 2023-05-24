@@ -14,8 +14,8 @@ impl Serialize for MediaSource {
             S: Serializer,
     {
         match self.clone() {
-            Self::Youtube => serializer.serialize_str("Youtube"),
-            Self::Vimeo => serializer.serialize_str("Vimeo"),
+            Self::Youtube => serializer.serialize_str("YOUTUBE"),
+            Self::Vimeo => serializer.serialize_str("VIMEO"),
             Self::String(value) => serializer.serialize_str(&value)
         }
     }
@@ -38,8 +38,8 @@ impl<'de> Deserialize<'de> for MediaSource {
 impl ToString for MediaSource {
     fn to_string(&self) -> String {
         match self.clone() {
-            Self::Youtube => String::from("Youtube"),
-            Self::Vimeo => String::from("Vimeo"),
+            Self::Youtube => String::from("YOUTUBE"),
+            Self::Vimeo => String::from("VIMEO"),
             Self::String(value) => value
         }
     }
