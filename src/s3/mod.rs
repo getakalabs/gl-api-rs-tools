@@ -1,4 +1,6 @@
 pub mod impls;
+pub mod mutations;
+pub mod stages;
 
 use arraygen::Arraygen;
 use mongodb::bson::{ Bson, Document };
@@ -8,27 +10,25 @@ use crate::Cipher;
 use crate::traits::Decrypt;
 use crate::traits::Encrypt;
 use crate::traits::IsEmpty;
-use crate::traits::ToBson;
-use crate::traits::ToJson;
 
 /// S3 struct
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize, Arraygen)]
-#[gen_array(fn get_array_ciphers: &mut Option<Cipher>)]
+#[gen_array(fn get_ciphers: &mut Option<Cipher>)]
 pub struct S3 {
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[in_array(get_array_ciphers)]
+    #[in_array(get_ciphers)]
     pub access_key_id: Option<Cipher>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[in_array(get_array_ciphers)]
+    #[in_array(get_ciphers)]
     pub secret_access_key: Option<Cipher>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[in_array(get_array_ciphers)]
+    #[in_array(get_ciphers)]
     pub bucket: Option<Cipher>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[in_array(get_array_ciphers)]
+    #[in_array(get_ciphers)]
     pub path: Option<Cipher>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[in_array(get_array_ciphers)]
+    #[in_array(get_ciphers)]
     pub region: Option<Cipher>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_thumbnail_small_size: Option<i32>,
@@ -69,14 +69,12 @@ impl Decrypt for S3 {
     fn decrypt(&self) -> Option<Self> {
         let mut data = self.clone();
 
-        for cipher in data.get_array_ciphers() {
-            *cipher = cipher.clone().and_then(|d| match d.is_empty() {
-                true => None,
-                false => match d.decrypt_master() {
-                    Ok(d) => Some(d),
-                    Err(_) => Some(d)
-                }
-            });
+        for cipher in data.get_ciphers() {
+            *cipher = cipher.clone()
+                .unwrap_or_default()
+                .decrypt_master()
+                .map(Some)
+                .unwrap_or(cipher.clone());
         }
 
         match data.is_empty() {
@@ -91,14 +89,12 @@ impl Encrypt for S3 {
     fn encrypt(&self) -> Option<Self> {
         let mut data = self.clone();
 
-        for cipher in data.get_array_ciphers() {
-            *cipher = cipher.clone().and_then(|d| match d.is_empty() {
-                true => None,
-                false => match d.encrypt_master() {
-                    Ok(d) => Some(d),
-                    Err(_) => Some(d)
-                }
-            });
+        for cipher in data.get_ciphers() {
+            *cipher = cipher.clone()
+                .unwrap_or_default()
+                .encrypt_master()
+                .map(Some)
+                .unwrap_or(cipher.clone());
         }
 
         match data.is_empty() {
@@ -149,23 +145,5 @@ impl From<S3> for Document {
 impl IsEmpty for S3 {
     fn is_empty(&self) -> bool {
         Self::default() == *self
-    }
-}
-
-impl ToBson for S3 {
-    fn to_bson(&self) -> Option<Self> {
-        match self.is_empty() {
-            true => None,
-            false => self.encrypt()
-        }
-    }
-}
-
-impl ToJson for S3 {
-    fn to_json(&self) -> Option<Self> {
-        match self.is_empty() {
-            true => None,
-            false => self.decrypt()
-        }
     }
 }

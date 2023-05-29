@@ -186,4 +186,20 @@ impl Cipher {
     pub fn decrypt_web(&self) -> Result<Self> {
         self.decrypt(WEB_KEY)
     }
+
+    /// Retrieve string value from master key
+    pub fn get_string_from_master(&self) -> String {
+        match self.decrypt_master() {
+            Ok(value) => value.to_string(),
+            Err(_) => self.content.clone().unwrap_or_default()
+        }
+    }
+
+    /// Retrieve string value from web key
+    pub fn get_string_from_web(&self) -> String {
+        match self.decrypt_web() {
+            Ok(value) => value.to_string(),
+            Err(_) => self.content.clone().unwrap_or_default()
+        }
+    }
 }

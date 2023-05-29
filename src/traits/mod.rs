@@ -15,11 +15,3 @@ pub trait Encrypt {
 pub trait IsEmpty {
     fn is_empty(&self) -> bool;
 }
-
-pub trait ToBson {
-    fn to_bson(&self) -> Option<Self> where Self: Sized;
-}
-
-pub trait ToJson {
-    fn to_json(&self) -> Option<Self> where Self: Sized;
-}
