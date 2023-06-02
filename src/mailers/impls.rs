@@ -3,7 +3,9 @@ use infer::Infer;
 use lettre::{ Message, SmtpTransport, Transport };
 use lettre::message::{ header::ContentType, Attachment, MultiPart, SinglePart };
 use lettre::transport::smtp::authentication::Credentials;
+use std::sync::{ Arc, RwLock };
 
+use crate::Errors;
 use crate::Mailer;
 use crate::MailerAttachment;
 use crate::Payload;
@@ -92,6 +94,14 @@ impl Mailer {
         match mailer.send(&builder) {
             Ok(_) => Ok(format!("Email sent successfully to {to}")),
             Err(error) => Err(Payload::error(&error)),
+        }
+    }
+
+    /// Parse from async graphql context
+    pub fn parse<'a>(ctx: &'a async_graphql::Context<'_>) -> async_graphql::Result<&'a Arc<RwLock<Self>>> {
+        match ctx.data_opt::<Arc<RwLock<Self>>>() {
+            Some(settings) => Ok(settings),
+            None =>  Err(Errors::internal_server_error_message("Unable to initialize mailer configuration"))
         }
     }
 }

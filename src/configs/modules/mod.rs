@@ -1,9 +1,15 @@
-use mongodb::bson::Bson;
+use diesel;
+use diesel::deserialize::{ FromSql, FromSqlRow };
+use diesel::expression::AsExpression;
+use diesel::pg::{ Pg, PgValue };
+use diesel::serialize::{ Output, ToSql };
+use diesel::sql_types::Text;
 use serde::{ Serialize, Serializer, Deserialize, Deserializer };
 
 /// Modules enum for settings
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) enum Module {
+#[derive(Debug, Clone, PartialEq, AsExpression, FromSqlRow)]
+#[diesel(sql_type = Text)]
+pub enum Module {
     Base,
     Mailer,
     Paseto,
@@ -17,9 +23,9 @@ impl Serialize for Module {
             S: Serializer,
     {
         match self.clone() {
-            Self::Base => serializer.serialize_str("Base"),
-            Self::Mailer => serializer.serialize_str("Mailer"),
-            Self::Paseto => serializer.serialize_str("Paseto"),
+            Self::Base => serializer.serialize_str("BASE"),
+            Self::Mailer => serializer.serialize_str("MAILER"),
+            Self::Paseto => serializer.serialize_str("PASETO"),
             Self::S3 => serializer.serialize_str("S3")
         }
     }
@@ -42,22 +48,40 @@ impl<'de> Deserialize<'de> for Module {
     }
 }
 
-/// Convert module to bson
-impl From<Module> for Bson {
-    fn from(value: Module) -> Self {
-        Bson::String(value.to_string())
-    }
-}
-
 /// Convert module to string
 impl ToString for Module {
     fn to_string(&self) -> String {
         match self {
-            Module::Base => String::from("Base"),
-            Module::Mailer => String::from("Mailer"),
-            Module::Paseto => String::from("Paseto"),
+            Module::Base => String::from("BASE"),
+            Module::Mailer => String::from("MAILER"),
+            Module::Paseto => String::from("PASETO"),
             Module::S3 => String::from("S3")
         }
     }
 }
 
+/// Convert string to module
+impl FromSql<Text, Pg> for Module {
+    fn from_sql(bytes: PgValue) -> diesel::deserialize::Result<Self> {
+        match <String as FromSql<Text, Pg>>::from_sql(bytes)?.to_lowercase().as_str() {
+            "base" => Ok(Self::Base),
+            "mailer" => Ok(Self::Mailer),
+            "paseto" => Ok(Self::Paseto),
+            "s3" => Ok(Self::S3),
+            _ => Err("Invalid module value".into())
+        }
+    }
+}
+
+impl ToSql<Text, Pg> for Module {
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Pg>) -> diesel::serialize::Result {
+        let text = match self {
+            Module::Base => "BASE",
+            Module::Mailer => "MAILER",
+            Module::Paseto => "PASETO",
+            Module::S3 => "S3"
+        };
+
+        ToSql::<Text, Pg>::to_sql(text, &mut out.reborrow())
+    }
+}

@@ -3,7 +3,12 @@ pub mod mutations;
 pub mod stages;
 
 use arraygen::Arraygen;
-use mongodb::bson::{ Bson, Document };
+use diesel;
+use diesel::deserialize::{ FromSql, FromSqlRow };
+use diesel::expression::AsExpression;
+use diesel::pg::{ Pg, PgValue };
+use diesel::serialize::{ Output, ToSql };
+use diesel::sql_types::Jsonb;
 use serde::{ Serialize, Deserialize };
 use std::default::Default;
 
@@ -13,7 +18,8 @@ use crate::traits::Encrypt;
 use crate::traits::IsEmpty;
 
 /// Mailer container for basic info of the API
-#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize, Arraygen)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize, Arraygen, AsExpression, FromSqlRow)]
+#[diesel(sql_type = Jsonb)]
 #[gen_array(fn get_ciphers: &mut Option<Cipher>)]
 pub struct Mailer {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -75,33 +81,23 @@ impl Encrypt for Mailer {
     }
 }
 
-/// Convert Mailer to Bson
-impl From<Mailer> for Bson {
-    fn from(value: Mailer) -> Self {
-        Bson::Document(value.into())
-    }
-}
-
-/// Convert Mailer to Document
-impl From<Mailer> for Document {
-    fn from(value: Mailer) -> Document {
-        match value.is_empty() {
-            true => Document::new(),
-            false => {
-                let mut doc = Document::new();
-                doc.insert("username", Bson::from(value.username));
-                doc.insert("password", Bson::from(value.password));
-                doc.insert("smtp_host", Bson::from(value.smtp_host));
-                doc.insert("service", Bson::from(value.service));
-                doc
-            }
-        }
-    }
-}
-
 /// Check if Mailer is empty
 impl IsEmpty for Mailer {
     fn is_empty(&self) -> bool {
         Self::default() == *self
+    }
+}
+
+/// FromSql implementation for Mailer
+impl FromSql<Jsonb, Pg> for Mailer {
+    fn from_sql(bytes: PgValue) -> diesel::deserialize::Result<Self> {
+        Ok(serde_json::from_value(<serde_json::Value as FromSql<Jsonb, Pg>>::from_sql(bytes)?)?)
+    }
+}
+
+/// ToSql implementation for Mailer
+impl ToSql<Jsonb, Pg> for Mailer {
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Pg>) -> diesel::serialize::Result {
+        ToSql::<Jsonb, Pg>::to_sql(&serde_json::to_value(self)?, &mut out.reborrow())
     }
 }

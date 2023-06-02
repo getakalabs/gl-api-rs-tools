@@ -1,5 +1,24 @@
 use serde::{Serialize, Deserialize};
 
+/// Create BearerToken
+#[derive(Default, Debug, Clone, PartialEq)]
+pub struct BearerToken(pub String);
+
+impl ToString for BearerToken {
+    fn to_string(&self) -> String {
+        self.0.clone()
+    }
+}
+
+/// Create bearer token implementation
+impl BearerToken {
+    pub fn new<T>(token: T) -> Self
+        where T: ToString
+    {
+        Self(token.to_string())
+    }
+}
+
 /// Token container struct
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Token {

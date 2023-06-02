@@ -1,7 +1,7 @@
 use handlebars::Handlebars as HBS;
 
 const ASSET_PATH: &str = "./assets/templates";
-const EXTENSION: &str = "hbs";
+const EXTENSION: &str = ".hbs";
 
 // Stage handlebar instance
 pub fn stage() -> HBS<'static> {

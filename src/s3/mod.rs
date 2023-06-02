@@ -3,7 +3,12 @@ pub mod mutations;
 pub mod stages;
 
 use arraygen::Arraygen;
-use mongodb::bson::{ Bson, Document };
+use diesel;
+use diesel::deserialize::{ FromSql, FromSqlRow };
+use diesel::expression::AsExpression;
+use diesel::pg::{ Pg, PgValue };
+use diesel::serialize::{ Output, ToSql };
+use diesel::sql_types::Jsonb;
 use serde::{ Serialize, Deserialize };
 
 use crate::Cipher;
@@ -12,7 +17,8 @@ use crate::traits::Encrypt;
 use crate::traits::IsEmpty;
 
 /// S3 struct
-#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize, Arraygen)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize, Arraygen, AsExpression, FromSqlRow)]
+#[diesel(sql_type = Jsonb)]
 #[gen_array(fn get_ciphers: &mut Option<Cipher>)]
 pub struct S3 {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -104,46 +110,24 @@ impl Encrypt for S3 {
     }
 }
 
-/// From implementation from S3 to Bson
-impl From<S3> for Bson {
-    fn from(value: S3) -> Self {
-        Bson::Document(value.into())
-    }
-}
-
-/// From implementation from S3 to Document
-impl From<S3> for Document {
-    fn from(value: S3) -> Document {
-        let mut doc = Document::new();
-
-        doc.insert("access_key_id", Bson::from(value.access_key_id));
-        doc.insert("secret_access_key", Bson::from(value.secret_access_key));
-        doc.insert("bucket", Bson::from(value.bucket));
-        doc.insert("path", Bson::from(value.path));
-        doc.insert("region", Bson::from(value.region));
-        doc.insert("image_thumbnail_small_size", Bson::from(value.image_thumbnail_small_size));
-        doc.insert("image_thumbnail_medium_size", Bson::from(value.image_thumbnail_medium_size));
-        doc.insert("image_thumbnail_large_size", Bson::from(value.image_thumbnail_large_size));
-        doc.insert("image_thumbnail_xl_size", Bson::from(value.image_thumbnail_xl_size));
-        doc.insert("image_landscape_width_small_size", Bson::from(value.image_landscape_width_small_size));
-        doc.insert("image_landscape_height_small_size", Bson::from(value.image_landscape_height_small_size));
-        doc.insert("image_landscape_width_medium_size", Bson::from(value.image_landscape_width_medium_size));
-        doc.insert("image_landscape_height_medium_size", Bson::from(value.image_landscape_height_medium_size));
-        doc.insert("image_landscape_width_large_size", Bson::from(value.image_landscape_width_large_size));
-        doc.insert("image_landscape_height_large_size", Bson::from(value.image_landscape_height_large_size));
-        doc.insert("image_landscape_width_xl_size", Bson::from(value.image_landscape_width_xl_size));
-        doc.insert("image_landscape_height_xl_size", Bson::from(value.image_landscape_height_xl_size));
-        doc.insert("image_landscape_width_xxl_size", Bson::from(value.image_landscape_width_xxl_size));
-        doc.insert("image_landscape_height_xxl_size", Bson::from(value.image_landscape_height_xxl_size));
-        doc.insert("image_landscape_width_xxxl_size", Bson::from(value.image_landscape_width_xxxl_size));
-        doc.insert("image_landscape_height_xxxl_size", Bson::from(value.image_landscape_height_xxxl_size));
-
-        doc
-    }
-}
-
+/// IsEmpty implementation for S3
 impl IsEmpty for S3 {
     fn is_empty(&self) -> bool {
         Self::default() == *self
+    }
+}
+
+
+/// FromSql implementation for S3
+impl FromSql<Jsonb, Pg> for S3 {
+    fn from_sql(bytes: PgValue) -> diesel::deserialize::Result<Self> {
+        Ok(serde_json::from_value(<serde_json::Value as FromSql<Jsonb, Pg>>::from_sql(bytes)?)?)
+    }
+}
+
+/// ToSql implementation for S3
+impl ToSql<Jsonb, Pg> for S3 {
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Pg>) -> diesel::serialize::Result {
+        ToSql::<Jsonb, Pg>::to_sql(&serde_json::to_value(self)?, &mut out.reborrow())
     }
 }

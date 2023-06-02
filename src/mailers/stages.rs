@@ -1,36 +1,31 @@
 use actix_web::Result;
-use mongodb::{ bson::doc, options::FindOneOptions, Database };
+use diesel::{ ExpressionMethods, QueryDsl, RunQueryDsl };
 use std::sync::{ Arc, RwLock };
 
-use crate::configs::SETTINGS;
 use crate::configs::Module;
 use crate::configs::Settings;
 
 use crate::Mailer;
+use crate::PgPooledConnection;
 use crate::traits::Decrypt;
+
+use crate::schema;
 
 /// Mailer stage implementation
 impl Mailer {
     /// Retrieve initial mailer configuration
-    pub async fn stage(datamailer: &Database) -> Result<Arc<RwLock<Self>>> {
-        // Set collection
-        let collection = datamailer.collection::<Settings>(SETTINGS);
-
-        // Create filter & options
-        let filter = doc! { "module": Module::Mailer };
-        let options = FindOneOptions::builder()
-            .sort(doc! { "created_at": -1 })
-            .build();
+    pub fn stage(conn: &mut PgPooledConnection) -> Result<Arc<RwLock<Self>>> {
+        // Set query
+        let query = schema::settings::dsl::settings
+            .filter(schema::settings::dsl::module.eq(Module::Mailer))
+            .order(schema::settings::dsl::created_at.desc())
+            .limit(1);
 
         // Retrieve settings
-        let settings = collection.find_one(filter, options)
-            .await
-            .unwrap_or_default()
-            .unwrap_or_default();
-
-        // Return mailer value if it exists
-        if let Some( mailer ) = settings.mailer.unwrap_or_default().decrypt() {
-            return Ok(Arc::new(RwLock::new(mailer)));
+        if let Ok(data) = query.first::<Settings>(conn) {
+            if let Some( data ) = data.mailer.unwrap_or_default().decrypt() {
+                return Ok(Arc::new(RwLock::new(data)));
+            }
         }
 
         // Return default value

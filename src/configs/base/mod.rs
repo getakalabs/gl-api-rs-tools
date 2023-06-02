@@ -1,8 +1,14 @@
+pub mod impls;
 pub mod mutations;
 pub mod stages;
 
 use arraygen::Arraygen;
-use mongodb::bson::{ Bson, Document };
+use diesel;
+use diesel::deserialize::{ FromSql, FromSqlRow };
+use diesel::expression::AsExpression;
+use diesel::pg::{ Pg, PgValue };
+use diesel::serialize::{ Output, ToSql };
+use diesel::sql_types::Jsonb;
 use serde::{ Serialize, Deserialize };
 use std::default::Default;
 
@@ -12,7 +18,8 @@ use crate::traits::Encrypt;
 use crate::traits::IsEmpty;
 
 /// Base container for basic info of the API
-#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize, Arraygen)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize, Arraygen, AsExpression, FromSqlRow)]
+#[diesel(sql_type = Jsonb)]
 #[gen_array(fn get_ciphers: &mut Option<Cipher>)]
 pub struct Base {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -66,32 +73,23 @@ impl Encrypt for Base {
     }
 }
 
-/// Convert Base to Bson
-impl From<Base> for Bson {
-    fn from(value: Base) -> Self {
-        Bson::Document(value.into())
-    }
-}
-
-/// Convert Base to Document
-impl From<Base> for Document {
-    fn from(value: Base) -> Document {
-        match value.is_empty() {
-            true => Document::new(),
-            false => {
-                let mut doc = Document::new();
-                doc.insert("api_url", Bson::from(value.api_url));
-                doc.insert("web_url", Bson::from(value.web_url));
-                doc.insert("admin_url", Bson::from(value.admin_url));
-                doc
-            }
-        }
-    }
-}
-
 /// Check if Base is empty
 impl IsEmpty for Base {
     fn is_empty(&self) -> bool {
         Self::default() == *self
+    }
+}
+
+/// FromSql implementation for Base
+impl FromSql<Jsonb, Pg> for Base {
+    fn from_sql(bytes: PgValue) -> diesel::deserialize::Result<Self> {
+        Ok(serde_json::from_value(<serde_json::Value as FromSql<Jsonb, Pg>>::from_sql(bytes)?)?)
+    }
+}
+
+/// ToSql implementation for Base
+impl ToSql<Jsonb, Pg> for Base {
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Pg>) -> diesel::serialize::Result {
+        ToSql::<Jsonb, Pg>::to_sql(&serde_json::to_value(self)?, &mut out.reborrow())
     }
 }

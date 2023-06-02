@@ -1,10 +1,14 @@
 use anyhow::Result;
-use mongodb::bson::{ Bson, Document };
+use diesel;
+use diesel::deserialize::{ FromSql, FromSqlRow };
+use diesel::expression::AsExpression;
+use diesel::pg::{ Pg, PgValue };
+use diesel::serialize::{ Output, ToSql };
+use diesel::sql_types::Jsonb;
 use serde::{ Serialize, Deserialize };
 use xsalsa20poly1305::aead::{ Aead, KeyInit };
 use xsalsa20poly1305::aead::generic_array::{ GenericArray, typenum::{ self, Unsigned } };
 use xsalsa20poly1305::XSalsa20Poly1305;
-
 
 use crate::traits::IsEmpty;
 
@@ -15,7 +19,8 @@ const MASTER_KEY: &str = "MASTER_KEY";
 const WEB_KEY: &str = "WEB_KEY";
 
 /// Cipher struct
-#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize, AsExpression, FromSqlRow)]
+#[diesel(sql_type = Jsonb)]
 pub struct Cipher {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) content: Option<String>,
@@ -31,32 +36,27 @@ impl IsEmpty for Cipher {
     }
 }
 
-/// From implementation for Cipher and convert it to Bson
-impl From<Cipher> for Bson {
-    fn from(value: Cipher) -> Self {
-        Bson::Document(value.into())
-    }
-}
-
-/// From implementation for Cipher and convert it to Mongo Document
-impl From<Cipher> for Document {
-    fn from(value: Cipher) -> Document {
-        let mut doc = Document::new();
-
-        doc.insert("content", Bson::from(value.content));
-        doc.insert("hash", Bson::from(value.hash));
-        doc.insert("is_encrypted", Bson::from(value.is_encrypted));
-
-        doc
-    }
-}
-
 /// ToString implementation of cipher
 impl ToString for Cipher {
     fn to_string(&self) -> String {
         self.content.clone().unwrap_or(String::default())
     }
 }
+
+/// FromSql implementation for Cipher
+impl FromSql<Jsonb, Pg> for Cipher {
+    fn from_sql(bytes: PgValue) -> diesel::deserialize::Result<Self> {
+        Ok(serde_json::from_value(<serde_json::Value as FromSql<Jsonb, Pg>>::from_sql(bytes)?)?)
+    }
+}
+
+/// ToSql implementation for Cipher
+impl ToSql<Jsonb, Pg> for Cipher {
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Pg>) -> diesel::serialize::Result {
+        ToSql::<Jsonb, Pg>::to_sql(&serde_json::to_value(self)?, &mut out.reborrow())
+    }
+}
+
 
 /// Cipher implementation of internal methods
 impl Cipher {

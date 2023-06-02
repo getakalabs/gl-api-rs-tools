@@ -1,7 +1,8 @@
-pub mod impls;
-
 use arraygen::Arraygen;
-use mongodb::bson::{ oid::ObjectId, DateTime };
+use diesel;
+use diesel::prelude::*;
+use chrono::{ NaiveDateTime, Utc };
+use nanoid::nanoid;
 use serde::{ Serialize, Deserialize };
 
 use crate::Base;
@@ -13,20 +14,18 @@ use crate::traits::Decrypt;
 use crate::traits::Encrypt;
 use crate::traits::IsEmpty;
 
+use crate::schema;
+
 /// Settings container struct
-#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize, Arraygen)]
-#[gen_array(fn get_id: &mut Option<ObjectId>)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize, Arraygen, AsChangeset, Queryable, Insertable, QueryableByName)]
 #[gen_array(fn get_base: &mut Option<Base>)]
 #[gen_array(fn get_mailer: &mut Option<Mailer>)]
 #[gen_array(fn get_paseto: &mut Option<Paseto>)]
 #[gen_array(fn get_s3: &mut Option<S3>)]
-#[gen_array(fn get_date: &mut Option<DateTime>)]
+#[diesel(table_name = schema::settings)]
 pub(crate) struct Settings {
-    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
-    #[in_array(get_id)]
-    pub id: Option<ObjectId>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub module: Option<Module>,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[in_array(get_base)]
     pub base: Option<Base>,
@@ -40,11 +39,11 @@ pub(crate) struct Settings {
     #[in_array(get_s3)]
     pub s3: Option<S3>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[in_array(get_date)]
-    pub created_at: Option<DateTime>,
+    pub module: Option<Module>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[in_array(get_date)]
-    pub updated_at: Option<DateTime>
+    pub created_at: Option<NaiveDateTime>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<NaiveDateTime>
 }
 
 /// Decrypt Settings information
@@ -103,6 +102,7 @@ impl Encrypt for Settings {
     }
 }
 
+/// Create Settings from Paseto objects
 impl From<Paseto> for Settings {
     fn from(paseto: Paseto) -> Self {
         let paseto = match paseto.is_empty() {
@@ -111,16 +111,17 @@ impl From<Paseto> for Settings {
         };
 
         Self {
-            id: Some(ObjectId::new()),
+            id: nanoid!(),
             module: Some(Module::Paseto),
             paseto,
-            created_at: Some(DateTime::now()),
-            updated_at: Some(DateTime::now()),
+            created_at: Some(Utc::now().naive_utc()),
+            updated_at: Some(Utc::now().naive_utc()),
             ..Default::default()
         }
     }
 }
 
+/// Create Settings from Paseto objects
 impl From<&Paseto> for Settings {
     fn from(paseto: &Paseto) -> Self {
         Self::from(paseto.clone())

@@ -3,7 +3,12 @@ pub mod mutations;
 pub mod stages;
 
 use arraygen::Arraygen;
-use mongodb::bson::{ Bson, Document };
+use diesel;
+use diesel::deserialize::{ FromSql, FromSqlRow };
+use diesel::expression::AsExpression;
+use diesel::pg::{ Pg, PgValue };
+use diesel::serialize::{ Output, ToSql };
+use diesel::sql_types::Jsonb;
 use serde::{ Serialize, Deserialize };
 use std::default::Default;
 
@@ -13,7 +18,8 @@ use crate::traits::Encrypt;
 use crate::traits::IsEmpty;
 
 /// Paseto container for basic info of the API
-#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize, Arraygen)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize, Arraygen, AsExpression, FromSqlRow)]
+#[diesel(sql_type = Jsonb)]
 #[gen_array(fn get_ciphers: &mut Option<Cipher>)]
 pub struct Paseto {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -79,32 +85,6 @@ impl Encrypt for Paseto {
     }
 }
 
-/// Convert Paseto to Bson
-impl From<Paseto> for Bson {
-    fn from(value: Paseto) -> Self {
-        Bson::Document(value.into())
-    }
-}
-
-/// Convert Paseto to Document
-impl From<Paseto> for Document {
-    fn from(value: Paseto) -> Document {
-        match value.is_empty() {
-            true => Document::new(),
-            false => {
-                let mut doc = Document::new();
-                doc.insert("app_name", Bson::from(value.app_name));
-                doc.insert("access_token_key_unit", Bson::from(value.access_token_key_unit));
-                doc.insert("access_token_key_time", Bson::from(value.access_token_key_time));
-                doc.insert("access_token_key_signing", Bson::from(value.access_token_key_signing));
-                doc.insert("refresh_token_key_unit", Bson::from(value.refresh_token_key_unit));
-                doc.insert("refresh_token_key_time", Bson::from(value.refresh_token_key_time));
-                doc.insert("refresh_token_key_signing", Bson::from(value.refresh_token_key_signing));
-                doc
-            }
-        }
-    }
-}
 
 /// Convert String to Paseto instance
 impl From<String> for Paseto {
@@ -125,5 +105,19 @@ impl From<String> for Paseto {
 impl IsEmpty for Paseto {
     fn is_empty(&self) -> bool {
         Self::default() == *self
+    }
+}
+
+/// FromSql implementation for Paseto
+impl FromSql<Jsonb, Pg> for Paseto {
+    fn from_sql(bytes: PgValue) -> diesel::deserialize::Result<Self> {
+        Ok(serde_json::from_value(<serde_json::Value as FromSql<Jsonb, Pg>>::from_sql(bytes)?)?)
+    }
+}
+
+/// ToSql implementation for Paseto
+impl ToSql<Jsonb, Pg> for Paseto {
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Pg>) -> diesel::serialize::Result {
+        ToSql::<Jsonb, Pg>::to_sql(&serde_json::to_value(self)?, &mut out.reborrow())
     }
 }
